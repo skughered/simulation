@@ -6,7 +6,7 @@ from riskboot.simulate import simulate_portfolios
 
 # Test with small numbers
 weights = {"stocks": 0.6, "bonds": 0.3, "rf_1m": 0.1}
-out = simulate_portfolios(weights=weights, months=12, n_scenarios=10, seed=42, lookback=6, block_range=(6,12))
+out = simulate_portfolios(weights=weights, months=240, n_scenarios=10, seed=42, lookback=6, block_range=(6,12))
 
 print("Static metrics keys:", out["static"]["metrics"].keys())
 print("Static AnnReturn sample:", out["static"]["metrics"]["AnnReturn"][:5])

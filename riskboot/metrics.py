@@ -32,6 +32,11 @@ def summarise_sims(returns: np.ndarray) -> dict:
         ann_r[i] = annualised_return(r)
         ann_v[i] = annualised_vol(r)
         dd[i]    = max_drawdown(r)
+        # Handle inf or nan
+        if np.isinf(ann_r[i]) or np.isinf(ann_v[i]) or np.isnan(dd[i]):
+            ann_r[i] = np.nan
+            ann_v[i] = np.nan
+            dd[i] = np.nan
     return {"AnnReturn": ann_r, "AnnVol": ann_v, "MaxDD": dd}
 
 def wealth_paths(returns: np.ndarray, start_value: float = 1.0) -> np.ndarray:
@@ -39,7 +44,10 @@ def wealth_paths(returns: np.ndarray, start_value: float = 1.0) -> np.ndarray:
     returns: (S, M)
     Wealth index paths (S, M)
     """
-    return start_value * np.cumprod(1.0 + returns, axis=1)
+    wealth = start_value * np.cumprod(1.0 + returns, axis=1)
+    # Clip to prevent inf
+    wealth = np.clip(wealth, 0, 1e10)
+    return wealth
 
 def percentile_bands(wealth: np.ndarray, qs=(0.05, 0.25, 0.5, 0.75, 0.95)) -> dict:
     """

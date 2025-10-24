@@ -87,14 +87,6 @@ if run:
 
     st.markdown("---")
 
-    st.write("DEBUG df_all head:")
-    st.dataframe(df_all.head())
-    st.write("Unique Types:", df_all["Type"].unique())
-    st.write("NaNs in AnnReturn:", df_all["AnnReturn"].isna().sum())
-    st.write("NaNs in MaxDD:", df_all["MaxDD"].isna().sum())
-    st.write("Infs in AnnReturn:", np.isinf(df_all["AnnReturn"]).sum())
-    st.write("Infs in MaxDD:", np.isinf(df_all["MaxDD"]).sum())
-    # # ---- Histograms (explicit data arrays)
     # ---- Histograms (direct array plotting)
     colA, colB = st.columns(2)
 
@@ -102,28 +94,29 @@ if run:
     df_static_clean = df_all[df_all["Type"] == "Static"].dropna(subset=["AnnReturn", "MaxDD"])
     df_trend_clean = df_all[df_all["Type"] == "Trend"].dropna(subset=["AnnReturn", "MaxDD"])
 
+    # Remove inf values as well
+    df_static_clean = df_static_clean[np.isfinite(df_static_clean["AnnReturn"]) & np.isfinite(df_static_clean["MaxDD"])]
+    df_trend_clean = df_trend_clean[np.isfinite(df_trend_clean["AnnReturn"]) & np.isfinite(df_trend_clean["MaxDD"])]
+
     with colA:
         fig_r = go.Figure()
         fig_r.add_trace(go.Histogram(
-            x=df_static_clean["AnnReturn"] * 100,
+            x=(df_static_clean["AnnReturn"] * 100).tolist(),
             name="Static",
             nbinsx=25,
-            opacity=0.6,
             marker=dict(color="blue")
         ))
         fig_r.add_trace(go.Histogram(
-            x=df_trend_clean["AnnReturn"] * 100,
+            x=(df_trend_clean["AnnReturn"] * 100).tolist(),
             name="Trend",
             nbinsx=25,
-            opacity=0.6,
             marker=dict(color="orange")
         ))
         fig_r.update_layout(
             title="Distribution of Annualised Returns",
             xaxis_title="Annualised Return (%)",
             yaxis_title="Frequency",
-            barmode="overlay",
-            template="plotly_white",
+            barmode="group",
             height=400,
         )
         st.plotly_chart(fig_r, use_container_width=True)
@@ -131,25 +124,22 @@ if run:
     with colB:
         fig_dd = go.Figure()
         fig_dd.add_trace(go.Histogram(
-            x=df_static_clean["MaxDD"] * 100,
+            x=(df_static_clean["MaxDD"] * 100).tolist(),
             name="Static",
             nbinsx=25,
-            opacity=0.6,
             marker=dict(color="blue")
         ))
         fig_dd.add_trace(go.Histogram(
-            x=df_trend_clean["MaxDD"] * 100,
+            x=(df_trend_clean["MaxDD"] * 100).tolist(),
             name="Trend",
             nbinsx=25,
-            opacity=0.6,
             marker=dict(color="orange")
         ))
         fig_dd.update_layout(
             title="Distribution of Maximum Drawdowns",
             xaxis_title="Maximum Drawdown (%)",
             yaxis_title="Frequency",
-            barmode="overlay",
-            template="plotly_white",
+            barmode="group",
             height=400,
         )
         st.plotly_chart(fig_dd, use_container_width=True)
