@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.env
+.env.*
+/riskboot/data/
+/riskboot/__pycache__/

@@ -1,0 +1,21 @@
+#
+#---
+#
+## ⚡ Performance tips (already applied)
+#
+#- **Joint bootstrap** produces one (S, M, K) array in a single pass — vectorised and cacheable.
+#- **Randomised mean block length per scenario** avoids artefacts without extra loops.
+#- **st.cache_data**: caches full simulation results for identical inputs (huge win).
+#- **Sane defaults**: `scens=4000`, `years=20` run fast on Streamlit Cloud; you can expose a “Performance mode” toggle if needed.
+#- **Avoid huge plots**: fan chart uses **percentile bands**, not thousands of lines.
+#- **Memory**: (4000 × 240 × 3) floats ≈ ~23 MB raw; fine for Streamlit Cloud.
+#
+#---
+#
+## ✅ What you (or Copilot) need to edit
+#
+#- Update `riskboot/config.py::DATA_DIR` and filenames if your paths differ.
+#- Make sure your CSV column names match (`stocks`, `bonds`, `rf_1m`).
+#  If not, tweak `data.py` mapping.
+#
+#That’s it — you can drop this into a fresh PyCharm project, push to GitHub, and deploy to Streamlit.

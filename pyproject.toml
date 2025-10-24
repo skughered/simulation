@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "riskboot"
+version = "0.1.0"
+description = "Block-bootstrap portfolio simulator with static vs trend-following comparisons"
+authors = [{ name = "Your Firm", email = "team@yourfirm.com" }]
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "numpy>=1.23",
+    "pandas>=2.0",
+    "plotly>=5.15",
+    "streamlit>=1.33"
+]
+
+[tool.setuptools]
+packages = ["riskboot"]
