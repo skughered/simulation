@@ -42,20 +42,23 @@ with st.sidebar:
     weights = {"stocks": w_eq, "bonds": w_bd, "rf_1m": w_csh}
 
     seed = st.number_input("Random seed", 0, 10_000_000, SEED_SIM, 1)
+    vol_increase_pct = st.slider("Volatility Increase", 0.0, 20.0, 0.0, 0.5)
+    vol_increase = vol_increase_pct / 100 if vol_increase_pct > 0 else None
     run = st.button("Run simulation", type="primary")
 
 # ---------------------------------------------------
 # Cached simulation run
 # ---------------------------------------------------
 @st.cache_data(show_spinner=False, ttl=3600)
-def _run_sim(weights, months, scens, seed, lookback, block_low, block_high):
+def _run_sim(weights, months, scens, seed, lookback, block_low, block_high, vol_increase):
     return simulate_portfolios(
         weights=weights,
         months=months,
         n_scenarios=scens,
         seed=seed,
         lookback=lookback,
-        block_range=(block_low, block_high)
+        block_range=(block_low, block_high),
+        vol_increase=vol_increase
     )
 
 # ---------------------------------------------------
@@ -63,7 +66,7 @@ def _run_sim(weights, months, scens, seed, lookback, block_low, block_high):
 # ---------------------------------------------------
 if run:
     with st.spinner("Simulating scenarios..."):
-        out = _run_sim(weights, months, scens, seed, lookback, block_low, block_high)
+        out = _run_sim(weights, months, scens, seed, lookback, block_low, block_high, vol_increase)
     st.success("Done!")
 
     # ---- Metrics tables
@@ -88,15 +91,15 @@ if run:
     st.markdown("---")
 
     # ---- Histograms (direct array plotting)
-    colA, colB = st.columns(2)
+    colA, colB, colC = st.columns(3)
 
     # Filter clean data
-    df_static_clean = df_all[df_all["Type"] == "Static"].dropna(subset=["AnnReturn", "MaxDD"])
-    df_trend_clean = df_all[df_all["Type"] == "Trend"].dropna(subset=["AnnReturn", "MaxDD"])
+    df_static_clean = df_all[df_all["Type"] == "Static"].dropna(subset=["AnnReturn", "MaxDD", "AnnVol"])
+    df_trend_clean = df_all[df_all["Type"] == "Trend"].dropna(subset=["AnnReturn", "MaxDD", "AnnVol"])
 
     # Remove inf values as well
-    df_static_clean = df_static_clean[np.isfinite(df_static_clean["AnnReturn"]) & np.isfinite(df_static_clean["MaxDD"])]
-    df_trend_clean = df_trend_clean[np.isfinite(df_trend_clean["AnnReturn"]) & np.isfinite(df_trend_clean["MaxDD"])]
+    df_static_clean = df_static_clean[np.isfinite(df_static_clean["AnnReturn"]) & np.isfinite(df_static_clean["MaxDD"]) & np.isfinite(df_static_clean["AnnVol"])]
+    df_trend_clean = df_trend_clean[np.isfinite(df_trend_clean["AnnReturn"]) & np.isfinite(df_trend_clean["MaxDD"]) & np.isfinite(df_trend_clean["AnnVol"])]
 
     with colA:
         fig_r = go.Figure()
@@ -104,18 +107,20 @@ if run:
             x=(df_static_clean["AnnReturn"] * 100).tolist(),
             name="Static",
             nbinsx=25,
-            marker=dict(color="blue")
+            marker=dict(color="blue"),
+            histnorm='probability density'
         ))
         fig_r.add_trace(go.Histogram(
             x=(df_trend_clean["AnnReturn"] * 100).tolist(),
             name="Trend",
             nbinsx=25,
-            marker=dict(color="orange")
+            marker=dict(color="orange"),
+            histnorm='probability density'
         ))
         fig_r.update_layout(
             title="Distribution of Annualised Returns",
             xaxis_title="Annualised Return (%)",
-            yaxis_title="Frequency",
+            yaxis_title="Probability Density",
             barmode="group",
             height=400,
         )
@@ -127,22 +132,49 @@ if run:
             x=(df_static_clean["MaxDD"] * 100).tolist(),
             name="Static",
             nbinsx=25,
-            marker=dict(color="blue")
+            marker=dict(color="blue"),
+            histnorm='probability density'
         ))
         fig_dd.add_trace(go.Histogram(
             x=(df_trend_clean["MaxDD"] * 100).tolist(),
             name="Trend",
             nbinsx=25,
-            marker=dict(color="orange")
+            marker=dict(color="orange"),
+            histnorm='probability density'
         ))
         fig_dd.update_layout(
             title="Distribution of Maximum Drawdowns",
             xaxis_title="Maximum Drawdown (%)",
-            yaxis_title="Frequency",
+            yaxis_title="Probability Density",
             barmode="group",
             height=400,
         )
         st.plotly_chart(fig_dd, use_container_width=True)
+
+    with colC:
+        fig_vol = go.Figure()
+        fig_vol.add_trace(go.Histogram(
+            x=(df_static_clean["AnnVol"] * 100).tolist(),
+            name="Static",
+            nbinsx=50,
+            marker=dict(color="blue"),
+            histnorm='probability density'
+        ))
+        fig_vol.add_trace(go.Histogram(
+            x=(df_trend_clean["AnnVol"] * 100).tolist(),
+            name="Trend",
+            nbinsx=50,
+            marker=dict(color="orange"),
+            histnorm='probability density'
+        ))
+        fig_vol.update_layout(
+            title="Distribution of Annualised Volatilities",
+            xaxis_title="Annualised Volatility (%)",
+            yaxis_title="Probability Density",
+            barmode="group",
+            height=400,
+        )
+        st.plotly_chart(fig_vol, use_container_width=True)
 
 
     # ---- Combined fan chart (same y-scale)

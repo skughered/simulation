@@ -39,7 +39,8 @@ def simulate_portfolios(
     n_scenarios: int = DEFAULT_SCENS,
     seed: int = SEED_SIM,
     lookback: int = 6,
-    block_range: Tuple[int, int] = BLOCK_RANGE
+    block_range: Tuple[int, int] = BLOCK_RANGE,
+    vol_increase: float | None = None
 ) -> Dict[str, dict]:
     """
     Runs joint bootstrap, builds static & trend portfolios, and summarises both.
@@ -56,10 +57,26 @@ def simulate_portfolios(
     static = combine_static(mkt["stocks"], mkt["bonds"], mkt["rf_1m"], weights)
     trend  = combine_trend(stocks_tf, bonds_tf, mkt["rf_1m"], weights)
 
+    # Optional volatility scaling for static portfolio
+    if vol_increase is not None and vol_increase > 0:
+        # Compute historical portfolio returns and volatility
+        eqb = load_eqb(DATA_DIR, EQB_FILENAME)
+        rf = load_rf(DATA_DIR, RF_FILENAME)
+        df_hist = pd.concat([eqb, rf], axis=1).dropna().reset_index(drop=True)
+        hist_port = (df_hist["stocks"] * weights["stocks"] +
+                     df_hist["bonds"] * weights["bonds"] +
+                     df_hist["rf_1m"] * weights["rf_1m"])
+        hist_vol = np.std(hist_port) * np.sqrt(12)
+        mu_hist = np.mean(hist_port)
+
+        # Apply scaling
+        scale = 1 + vol_increase / hist_vol
+        static = mu_hist + scale * (static - mu_hist)
+        static = np.clip(static, -0.95, None)
+
     # Metrics
     static_metrics = summarise_sims(static)
     trend_metrics  = summarise_sims(trend)
-    print("DEBUG static returns range:", np.nanmin(static), np.nanmax(static))
 
     # Wealth bands (for fan charts) — compute on a *thinned* subset to keep memory light if needed
     static_w = wealth_paths(static)
