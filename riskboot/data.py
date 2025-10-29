@@ -28,55 +28,56 @@ def _make_unique(names: List[str]) -> List[str]:
             out.append(base)
     return out
 
-def parse_meta_csv(data_dir: Path, filename: str, meta_rows: int = 2,
-                   public_row: int = 0, name_row: int = 1,
-                   dayfirst: bool = True) -> Tuple[pd.DataFrame, pd.DataFrame]:
+def parse_meta_csv(data_dir: Path, filename: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
-    Read CSV whose first `meta_rows` rows are column metadata.
-    Returns (data_df, meta_df):
-      - data_df: numeric DataFrame indexed by datetime with friendly unique column names
-      - meta_df: DataFrame indexed by those column names with columns ['name','public']
+    Parse the CSV with specific meta rows.
+    Row 0: Public (Yes/No)
+    Row 1: Name
+    Row 2: Ticker (used as column headers)
+    Rows 3-8: Ignored meta
+    Row 9+: Data, first column date, others returns
+    Returns (data_df, meta_df)
+    - data_df: DataFrame with datetime index, ticker columns, numeric data
+    - meta_df: DataFrame with ticker index, columns ['name', 'public']
     """
-    path = Path(data_dir) / filename
-    header_levels = list(range(meta_rows)) if meta_rows > 0 else None
-    df = pd.read_csv(path, header=header_levels, index_col=0)
+    path = data_dir / filename
+    df = pd.read_csv(path, header=None)
 
-    # Ensure datetime index and drop unparsable rows
-    df.index = pd.to_datetime(df.index, dayfirst=dayfirst, errors="coerce")
-    df = df[~df.index.isna()]
+    # Extract meta
+    public_row = df.iloc[0, 1:]  # Skip first column (date)
+    name_row = df.iloc[1, 1:]
+    ticker_row = df.iloc[2, 1:]
 
-    # Extract meta values from MultiIndex columns if present
-    if isinstance(df.columns, pd.MultiIndex):
-        try:
-            public_vals = pd.Series(df.columns.get_level_values(public_row).astype(str))
-        except Exception:
-            public_vals = pd.Series([""] * len(df.columns))
-        try:
-            name_vals = pd.Series(df.columns.get_level_values(name_row).astype(str))
-        except Exception:
-            name_vals = pd.Series([str(c) for c in df.columns])
-    else:
-        public_vals = pd.Series(["yes"] * len(df.columns))
-        name_vals = pd.Series([str(c) for c in df.columns])
+    # Make ticker_row unique
+    ticker_row = _make_unique(ticker_row)
 
-    public_bool = public_vals.str.strip().str.lower().isin({"yes", "y", "true", "1"})
-    friendly = _make_unique(name_vals.tolist())
+    # Data starts at row 9
+    data_df = df.iloc[9:, [0] + list(range(1, len(ticker_row)+1))].copy()
+    data_df.columns = ['date'] + ticker_row
+    data_df['date'] = pd.to_datetime(data_df['date'], dayfirst=True, errors='coerce')
+    data_df = data_df.dropna(subset=['date']).set_index('date')
 
-    data_df = df.copy()
-    data_df.columns = friendly
-    data_df = data_df.apply(pd.to_numeric, errors="coerce")
-    # drop any rows which are all NaN after conversion
-    data_df = data_df.dropna(how="all")
-    meta_df = pd.DataFrame({"name": friendly, "public": public_bool.values}, index=friendly)
+    # Convert to numeric, drop rows with all NaN, then drop any remaining NaNs
+    data_df = data_df.apply(pd.to_numeric, errors='coerce')
+    data_df = data_df.dropna(how='all')
+    data_df = data_df.dropna()  # Drop rows with any NaN
+
+    # Meta df
+    public_bool = pd.Series(public_row.values).astype(str).str.strip().str.lower().isin(['yes', 'y'])
+    meta_df = pd.DataFrame({
+        'name': name_row.values,
+        'public': public_bool.values
+    }, index=ticker_row)
+
     return data_df, meta_df
 
 def load_trend_weights(data_dir: Path, filename: str = "trend_port_weights.csv") -> pd.DataFrame:
     """
     Load trend portfolio weights CSV.
-    Returns DataFrame with asset as index and weight columns (w1 to w8).
+    Returns DataFrame with asset as index and portfolio columns (TWP2, TWP3, ..., BM1, etc.).
     """
     path = data_dir / filename
-    df = pd.read_csv(path, header=None, names=["asset", "w1", "w2", "w3", "w4", "w5", "w6", "w7", "w8"])
-    df.set_index("asset", inplace=True)
+    df = pd.read_csv(path)
+    df.set_index("Ticker", inplace=True)
     df = df.apply(pd.to_numeric, errors="coerce")
     return df

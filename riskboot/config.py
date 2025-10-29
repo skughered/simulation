@@ -16,6 +16,7 @@ else:
 EQB_FILENAME = "equity_bond_data.csv"
 RF_FILENAME  = "money_market.csv"
 ALL_ASSETS_FILENAME = "app_data_Oct_25.csv"
+TREND_WEIGHTS_FILENAME = "trend_port_weights.csv"
 
 
 # --- Simulation defaults ---
@@ -24,3 +25,7 @@ DEFAULT_MONTHS  = DEFAULT_YEARS * 12
 DEFAULT_SCENS   = 2000
 SEED_SIM        = 2025
 BLOCK_RANGE     = (6, 12)
+
+# --- Portfolio names ---
+TREND_PORTFOLIOS = ['TWP2', 'TWP3', 'TWP4', 'TWP5']
+BENCHMARK_PORTFOLIOS = ['BM1', 'BM2', 'BM3', 'BM4']
