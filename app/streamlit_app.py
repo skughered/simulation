@@ -8,10 +8,14 @@ import plotly.express as px
 import plotly.graph_objects as go
 import plotly.io as pio
 import streamlit.components.v1 as components
+from pathlib import Path
 
-from riskboot.config import DEFAULT_MONTHS, DEFAULT_SCENS, SEED_SIM, BLOCK_RANGE, DATA_DIR, TREND_WEIGHTS_FILENAME, ALL_ASSETS_FILENAME
+from riskboot.config import DEFAULT_MONTHS, DEFAULT_SCENS, SEED_SIM, BLOCK_RANGE, TREND_WEIGHTS_FILENAME, ALL_ASSETS_FILENAME
 from riskboot.simulate import simulate_portfolios
 from riskboot.data import load_trend_weights, parse_meta_csv
+
+# Override DATA_DIR for deployment
+DATA_DIR = Path(__file__).parent.parent / "riskboot" / "data"
 
 # ---------------------------------------------------
 # Streamlit UI Setup
