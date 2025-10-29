@@ -15,6 +15,8 @@ else:
 # --- Filenames ---
 EQB_FILENAME = "equity_bond_data.csv"
 RF_FILENAME  = "money_market.csv"
+ALL_ASSETS_FILENAME = "app_data_Oct_25.csv"
+
 
 # --- Simulation defaults ---
 DEFAULT_YEARS   = 30

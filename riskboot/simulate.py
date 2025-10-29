@@ -1,37 +1,44 @@
-from typing import Dict, Tuple
 import numpy as np
 import pandas as pd
+from typing import Dict, Tuple
 
-from .config import DATA_DIR, EQB_FILENAME, RF_FILENAME, DEFAULT_MONTHS, DEFAULT_SCENS, SEED_SIM, BLOCK_RANGE
-from .data import load_eqb, load_rf
-from .bootstrap import joint_stationary_bootstrap
-from .trend import apply_trend_filter
-from .portfolio import combine_static, combine_trend
-from .metrics import summarise_sims, wealth_paths, percentile_bands
+from riskboot.config import DATA_DIR, ALL_ASSETS_FILENAME, DEFAULT_MONTHS, DEFAULT_SCENS, SEED_SIM, BLOCK_RANGE
+from riskboot.data import parse_meta_csv, DataPaths
+from riskboot.bootstrap import joint_stationary_bootstrap
+from riskboot.trend import apply_trend_filter
+from riskboot.portfolio import combine_static, combine_trend
+from riskboot.metrics import summarise_sims, wealth_paths, percentile_bands
+
 
 def simulate_markets_joint(
-    months: int = DEFAULT_MONTHS,
-    n_scenarios: int = DEFAULT_SCENS,
-    seed: int = SEED_SIM,
-    block_range: Tuple[int, int] = BLOCK_RANGE
-) -> Dict[str, np.ndarray]:
+        months: int = DEFAULT_MONTHS,
+        n_scenarios: int = DEFAULT_SCENS,
+        avg_block_range: Tuple[int, int] = BLOCK_RANGE,
+        seed: int = SEED_SIM
+) -> Tuple[np.ndarray, pd.DataFrame]:
     """
-    Joint bootstrap for ['stocks','bonds','rf_1m'].
-    Returns dict of arrays (S, M).
+    Load all assets from the unified CSV and perform joint stationary bootstrap.
+    Returns bootstrapped returns (n_scenarios, months, n_assets) and meta_df for asset info.
     """
-    eqb = load_eqb(DATA_DIR, EQB_FILENAME)
-    rf  = load_rf(DATA_DIR, RF_FILENAME)
-    df = pd.concat([eqb, rf], axis=1)  # ['stocks','bonds','rf_1m']
-    df = df.dropna().reset_index(drop=True)
-    paths = joint_stationary_bootstrap(df_hist=df, months=months, n_scenarios=n_scenarios,
-                                       avg_block_range=block_range, seed=seed)
-    cols = list(df.columns)
-    idx = {c: i for i, c in enumerate(cols)}
-    return {
-        "stocks": paths[:, :, idx["stocks"]],
-        "bonds":  paths[:, :, idx["bonds"]],
-        "rf_1m":  paths[:, :, idx["rf_1m"]],
-    }
+    # Load data using the new parser
+    data_paths = DataPaths(data_dir=DATA_DIR, data_filename=ALL_ASSETS_FILENAME)
+    df_hist, meta_df = parse_meta_csv(
+        data_dir=data_paths.data_dir,
+        filename=data_paths.data_filename,
+        meta_rows=data_paths.meta_rows,
+        public_row=data_paths.public_row,
+        name_row=data_paths.name_row
+    )
+
+    # Joint bootstrap on all assets (public and internal)
+    bootstrapped = joint_stationary_bootstrap(
+        df_hist=df_hist,
+        months=months,
+        n_scenarios=n_scenarios,
+        avg_block_range=avg_block_range,
+        seed=seed
+    )
+    return bootstrapped, meta_df
 
 def simulate_portfolios(
     weights: Dict[str, float],
