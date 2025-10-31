@@ -116,49 +116,54 @@ if run:
     st.subheader("Static Portfolio Metrics")
     c1, c2, c3 = st.columns(3)
     with c1:
-        st.metric("5th MaxDD", f"{np.percentile(df_static['MaxDD'], 5) * 100:.1f}%")
-        st.metric("Median MaxDD", f"{np.median(df_static['MaxDD']) * 100:.1f}%")
-        st.metric("95th MaxDD", f"{np.percentile(df_static['MaxDD'], 95) * 100:.1f}%")
-    with c2:
-        st.metric("5th AnnVol", f"{np.percentile(df_static['AnnVol'], 5) * 100:.1f}%")
-        st.metric("Mean AnnVol", f"{np.mean(df_static['AnnVol']) * 100:.1f}%")
-        st.metric("95th AnnVol", f"{np.percentile(df_static['AnnVol'], 95) * 100:.1f}%")
-    with c3:
         st.metric("5th AnnRet", f"{np.percentile(df_static['AnnReturn'], 5) * 100:.1f}%")
         st.metric("Median AnnRet", f"{np.median(df_static['AnnReturn']) * 100:.1f}%")
         st.metric("95th AnnRet", f"{np.percentile(df_static['AnnReturn'], 95) * 100:.1f}%")
+
+    with c2:
+        st.metric("5th MaxDD", f"{np.percentile(df_static['MaxDD'], 5) * 100:.1f}%")
+        st.metric("Median MaxDD", f"{np.median(df_static['MaxDD']) * 100:.1f}%")
+        st.metric("95th MaxDD", f"{np.percentile(df_static['MaxDD'], 95) * 100:.1f}%")
+
+    with c3:
+        st.metric("5th AnnVol", f"{np.percentile(df_static['AnnVol'], 5) * 100:.1f}%")
+        st.metric("Mean AnnVol", f"{np.mean(df_static['AnnVol']) * 100:.1f}%")
+        st.metric("95th AnnVol", f"{np.percentile(df_static['AnnVol'], 95) * 100:.1f}%")
 
     if "trend" in out:
         st.subheader("Trend Portfolio Metrics")
         c1, c2, c3 = st.columns(3)
         with c1:
-            st.metric("5th MaxDD", f"{np.percentile(df_trend['MaxDD'], 5) * 100:.1f}%")
-            st.metric("Median MaxDD", f"{np.median(df_trend['MaxDD']) * 100:.1f}%")
-            st.metric("95th MaxDD", f"{np.percentile(df_trend['MaxDD'], 95) * 100:.1f}%")
-        with c2:
-            st.metric("5th AnnVol", f"{np.percentile(df_trend['AnnVol'], 5) * 100:.1f}%")
-            st.metric("Mean AnnVol", f"{np.mean(df_trend['AnnVol']) * 100:.1f}%")
-            st.metric("95th AnnVol", f"{np.percentile(df_trend['AnnVol'], 95) * 100:.1f}%")
-        with c3:
+
             st.metric("5th AnnRet", f"{np.percentile(df_trend['AnnReturn'], 5) * 100:.1f}%")
             st.metric("Median AnnRet", f"{np.median(df_trend['AnnReturn']) * 100:.1f}%")
             st.metric("95th AnnRet", f"{np.percentile(df_trend['AnnReturn'], 95) * 100:.1f}%")
+        with c2:
+            st.metric("5th MaxDD", f"{np.percentile(df_trend['MaxDD'], 5) * 100:.1f}%")
+            st.metric("Median MaxDD", f"{np.median(df_trend['MaxDD']) * 100:.1f}%")
+            st.metric("95th MaxDD", f"{np.percentile(df_trend['MaxDD'], 95) * 100:.1f}%")
+
+        with c3:
+            st.metric("5th AnnVol", f"{np.percentile(df_trend['AnnVol'], 5) * 100:.1f}%")
+            st.metric("Mean AnnVol", f"{np.mean(df_trend['AnnVol']) * 100:.1f}%")
+            st.metric("95th AnnVol", f"{np.percentile(df_trend['AnnVol'], 95) * 100:.1f}%")
 
     if "benchmark" in out:
         st.subheader("Benchmark Portfolio Metrics")
         c1, c2, c3 = st.columns(3)
         with c1:
-            st.metric("5th MaxDD", f"{np.percentile(df_benchmark['MaxDD'], 5) * 100:.1f}%")
-            st.metric("Median MaxDD", f"{np.median(df_benchmark['MaxDD']) * 100:.1f}%")
-            st.metric("95th MaxDD", f"{np.percentile(df_benchmark['MaxDD'], 95) * 100:.1f}%")
-        with c2:
-            st.metric("5th AnnVol", f"{np.percentile(df_benchmark['AnnVol'], 5) * 100:.1f}%")
-            st.metric("Mean AnnVol", f"{np.mean(df_benchmark['AnnVol']) * 100:.1f}%")
-            st.metric("95th AnnVol", f"{np.percentile(df_benchmark['AnnVol'], 95) * 100:.1f}%")
-        with c3:
             st.metric("5th AnnRet", f"{np.percentile(df_benchmark['AnnReturn'], 5) * 100:.1f}%")
             st.metric("Median AnnRet", f"{np.median(df_benchmark['AnnReturn']) * 100:.1f}%")
             st.metric("95th AnnRet", f"{np.percentile(df_benchmark['AnnReturn'], 95) * 100:.1f}%")
+        with c2:
+            st.metric("5th MaxDD", f"{np.percentile(df_benchmark['MaxDD'], 5) * 100:.1f}%")
+            st.metric("Median MaxDD", f"{np.median(df_benchmark['MaxDD']) * 100:.1f}%")
+            st.metric("95th MaxDD", f"{np.percentile(df_benchmark['MaxDD'], 95) * 100:.1f}%")
+        with c3:
+            st.metric("5th AnnVol", f"{np.percentile(df_benchmark['AnnVol'], 5) * 100:.1f}%")
+            st.metric("Mean AnnVol", f"{np.mean(df_benchmark['AnnVol']) * 100:.1f}%")
+            st.metric("95th AnnVol", f"{np.percentile(df_benchmark['AnnVol'], 95) * 100:.1f}%")
+
 
     st.markdown("---")
 
