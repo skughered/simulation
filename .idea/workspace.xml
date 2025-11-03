@@ -4,11 +4,8 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="1891d963-c4d4-4b19-a846-55f1b71ac747" name="Changes" comment="29 pm push">
-      <change afterPath="$PROJECT_DIR$/.idea/copilot.data.migration.agent.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/copilot.data.migration.edit.xml" afterDir="false" />
+    <list default="true" id="1891d963-c4d4-4b19-a846-55f1b71ac747" name="Changes" comment="3/11 push">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/streamlit_app.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/streamlit_app.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -60,7 +57,6 @@
     "Python.main.executor": "Run",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.git.unshallow": "true",
-    "SHARE_PROJECT_CONFIGURATION_FILES": "true",
     "git-widget-placeholder": "master",
     "ignore.virus.scanning.warn.message": "true",
     "settings.editor.selected.configurable": "database.data.views.appearance"
@@ -174,7 +170,15 @@
       <option name="project" value="LOCAL" />
       <updated>1761775588340</updated>
     </task>
-    <option name="localTasksCounter" value="8" />
+    <task id="LOCAL-00008" summary="3/11 push">
+      <option name="closed" value="true" />
+      <created>1762169303902</created>
+      <option name="number" value="00008" />
+      <option name="presentableId" value="LOCAL-00008" />
+      <option name="project" value="LOCAL" />
+      <updated>1762169303902</updated>
+    </task>
+    <option name="localTasksCounter" value="9" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
@@ -182,6 +186,7 @@
     <MESSAGE value="draft 1 pre run on streamlit" />
     <MESSAGE value="pm push" />
     <MESSAGE value="29 pm push" />
-    <option name="LAST_COMMIT_MESSAGE" value="29 pm push" />
+    <MESSAGE value="3/11 push" />
+    <option name="LAST_COMMIT_MESSAGE" value="3/11 push" />
   </component>
 </project>
