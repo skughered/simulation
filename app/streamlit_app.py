@@ -20,15 +20,15 @@ DATA_DIR = Path(__file__).parent.parent / "riskboot" / "data"
 # ---------------------------------------------------
 # Streamlit UI Setup
 # ---------------------------------------------------
-st.set_page_config(page_title="Portfolio Risk Simulator", layout="wide")
-st.title("📈 Portfolio Risk Simulator")
+st.set_page_config(page_title="Simulator", layout="wide")
+st.title("📈 Simulator")
 
 # ---------------------------------------------------
 # Sidebar inputs
 # ---------------------------------------------------
 with st.sidebar:
     st.header("Inputs")
-    years = st.slider("Projection horizon (years)", 5, 40, 20, 1)
+    years = st.slider("Projection horizon (years)", 5, 60, 20, 1)
     months = years * 12
 
     scens = st.slider("Number of simulations", 500, 10000, 4000, 500)
@@ -36,16 +36,44 @@ with st.sidebar:
     block_low, block_high = st.slider("Bootstrap mean block length (months)", 3, 24, (6, 12))
 
     st.subheader("Weights (must sum to 100%)")
+    st.caption("(AnnRets%, -MaxDD%, AnnVol%)")
 
     # Load meta data for public assets
-    _, meta_df = parse_meta_csv(DATA_DIR, ALL_ASSETS_FILENAME)
+    df_hist, meta_df = parse_meta_csv(DATA_DIR, ALL_ASSETS_FILENAME)
     public_assets = meta_df[meta_df['public']].index.tolist()
     public_names = meta_df[meta_df['public']]['name'].tolist()
+
+    # Calculate or load historical stats for public assets
+    stats_file = DATA_DIR / "asset_stats.csv"
+    if not stats_file.exists():
+        stats = []
+        for ticker in public_assets:
+            if ticker in df_hist.columns:
+                returns = df_hist[ticker].dropna()
+                if len(returns) > 0:
+                    cumulative = (1 + returns).cumprod()
+                    ann_ret = (cumulative.iloc[-1] ** (12 / len(returns)) - 1) * 100
+                    running_max = cumulative.expanding().max()
+                    drawdown = cumulative / running_max - 1
+                    max_dd = drawdown.min() * 100
+                    ann_vol = returns.std() * (12 ** 0.5) * 100
+                    stats.append([ticker, ann_ret, max_dd, ann_vol])
+        stats_df = pd.DataFrame(stats, columns=['ticker', 'ann_ret', 'max_dd', 'ann_vol'])
+        stats_df.to_csv(stats_file, index=False)
+    else:
+        stats_df = pd.read_csv(stats_file)
+
+    stats_dict = stats_df.set_index('ticker').to_dict('index')
 
     # Create dynamic weight inputs for public assets
     weights = {}
     for ticker, name in zip(public_assets, public_names):
-        weights[ticker] = st.number_input(f"{name} %", 0.0, 100.0, 0.0, 1.0, key=f'w_{ticker}')
+        s = stats_dict.get(ticker, {'ann_ret': 0, 'max_dd': 0, 'ann_vol': 0})
+        ann_ret = s['ann_ret']
+        max_dd = s['max_dd']
+        ann_vol = s['ann_vol']
+        label = f"{name} % - ({ann_ret:.1f}%, {max_dd:.1f}%, {ann_vol:.1f}%)"
+        weights[ticker] = st.number_input(label, 0.0, 100.0, 0.0, 1.0, key=f'w_{ticker}')
 
     total = sum(weights.values())
     if total != 100.0 and total > 0:
@@ -53,10 +81,6 @@ with st.sidebar:
         weights = {k: v / total * 100 for k, v in weights.items()}
     elif total == 0:
         st.warning("All weights are zero. Please set at least one weight.")
-
-    seed = st.number_input("Random seed", 0, 10_000_000, SEED_SIM, 1)
-    vol_increase_pct = st.slider("Volatility Increase", 0.0, 20.0, 0.0, 0.5)
-    vol_increase = vol_increase_pct / 100 if vol_increase_pct > 0 else None
 
     # Load trend portfolio options
     trend_weights_df = load_trend_weights(DATA_DIR, TREND_WEIGHTS_FILENAME)
@@ -94,15 +118,17 @@ def _run_sim(weights, months, scens, seed, lookback, block_low, block_high, vol_
 # ---------------------------------------------------
 if run:
     with st.spinner("Simulating scenarios..."):
-        out = _run_sim(weights, months, scens, seed, lookback, block_low, block_high, vol_increase, trend_portfolio, benchmark_portfolio)
+        out = _run_sim(weights, months, scens, SEED_SIM, lookback, block_low, block_high, None, trend_portfolio, benchmark_portfolio)
     st.success("Done!")
 
     # ---- Metrics tables
     def to_df(metrics: dict, label: str) -> pd.DataFrame:
         return pd.DataFrame(metrics).assign(Type=label)
 
-    df_static = to_df(out["static"]["metrics"], "Static")
-    df_all = pd.concat([df_static], ignore_index=True)
+    df_all = pd.DataFrame()
+    if "static" in out:
+        df_static = to_df(out["static"]["metrics"], "Static")
+        df_all = pd.concat([df_all, df_static], ignore_index=True)
     if "trend" in out:
         df_trend = to_df(out["trend"]["metrics"], "Trend")
         df_all = pd.concat([df_all, df_trend], ignore_index=True)
@@ -113,22 +139,24 @@ if run:
     st.markdown("---")
 
     # ---- Metrics display
-    st.subheader("Static Portfolio Metrics")
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        st.metric("5th AnnRet", f"{np.percentile(df_static['AnnReturn'], 5) * 100:.1f}%")
-        st.metric("Median AnnRet", f"{np.median(df_static['AnnReturn']) * 100:.1f}%")
-        st.metric("95th AnnRet", f"{np.percentile(df_static['AnnReturn'], 95) * 100:.1f}%")
+    if "static" in out:
+        st.subheader("Static Portfolio Metrics")
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            st.metric("5th AnnRet", f"{np.percentile(df_static['AnnReturn'], 5) * 100:.1f}%")
+            st.metric("Median AnnRet", f"{np.median(df_static['AnnReturn']) * 100:.1f}%")
+            st.metric("95th AnnRet", f"{np.percentile(df_static['AnnReturn'], 95) * 100:.1f}%")
 
-    with c2:
-        st.metric("5th MaxDD", f"{np.percentile(df_static['MaxDD'], 5) * 100:.1f}%")
-        st.metric("Median MaxDD", f"{np.median(df_static['MaxDD']) * 100:.1f}%")
-        st.metric("95th MaxDD", f"{np.percentile(df_static['MaxDD'], 95) * 100:.1f}%")
+        with c2:
+            st.metric("5th MaxDD", f"{np.percentile(df_static['MaxDD'], 5) * 100:.1f}%")
+            st.metric("Median MaxDD", f"{np.median(df_static['MaxDD']) * 100:.1f}%")
+            st.metric("95th MaxDD", f"{np.percentile(df_static['MaxDD'], 95) * 100:.1f}%")
+            st.metric("Windowed MaxDD 5th", f"{out['static']['metrics']['WindowedMaxDD5th'] * 100:.1f}%")
 
-    with c3:
-        st.metric("5th AnnVol", f"{np.percentile(df_static['AnnVol'], 5) * 100:.1f}%")
-        st.metric("Mean AnnVol", f"{np.mean(df_static['AnnVol']) * 100:.1f}%")
-        st.metric("95th AnnVol", f"{np.percentile(df_static['AnnVol'], 95) * 100:.1f}%")
+        with c3:
+            st.metric("5th AnnVol", f"{np.percentile(df_static['AnnVol'], 5) * 100:.1f}%")
+            st.metric("Mean AnnVol", f"{np.mean(df_static['AnnVol']) * 100:.1f}%")
+            st.metric("95th AnnVol", f"{np.percentile(df_static['AnnVol'], 95) * 100:.1f}%")
 
     if "trend" in out:
         st.subheader("Trend Portfolio Metrics")
@@ -142,6 +170,7 @@ if run:
             st.metric("5th MaxDD", f"{np.percentile(df_trend['MaxDD'], 5) * 100:.1f}%")
             st.metric("Median MaxDD", f"{np.median(df_trend['MaxDD']) * 100:.1f}%")
             st.metric("95th MaxDD", f"{np.percentile(df_trend['MaxDD'], 95) * 100:.1f}%")
+            st.metric("Windowed MaxDD 5th", f"{out['trend']['metrics']['WindowedMaxDD5th'] * 100:.1f}%")
 
         with c3:
             st.metric("5th AnnVol", f"{np.percentile(df_trend['AnnVol'], 5) * 100:.1f}%")
@@ -159,6 +188,7 @@ if run:
             st.metric("5th MaxDD", f"{np.percentile(df_benchmark['MaxDD'], 5) * 100:.1f}%")
             st.metric("Median MaxDD", f"{np.median(df_benchmark['MaxDD']) * 100:.1f}%")
             st.metric("95th MaxDD", f"{np.percentile(df_benchmark['MaxDD'], 95) * 100:.1f}%")
+            st.metric("Windowed MaxDD 5th", f"{out['benchmark']['metrics']['WindowedMaxDD5th'] * 100:.1f}%")
         with c3:
             st.metric("5th AnnVol", f"{np.percentile(df_benchmark['AnnVol'], 5) * 100:.1f}%")
             st.metric("Mean AnnVol", f"{np.mean(df_benchmark['AnnVol']) * 100:.1f}%")
@@ -171,28 +201,31 @@ if run:
     colA, colB, colC = st.columns(3)
 
     # Filter clean data
-    df_static_clean = df_all[df_all["Type"] == "Static"].dropna(subset=["AnnReturn", "MaxDD", "AnnVol"])
+    df_static_clean = None
+    if "static" in out:
+        df_static_clean = df_all[df_all["Type"] == "Static"].dropna(subset=["AnnReturn", "MaxDD", "AnnVol"])
+        df_static_clean = df_static_clean[np.isfinite(df_static_clean["AnnReturn"]) & np.isfinite(df_static_clean["MaxDD"]) & np.isfinite(df_static_clean["AnnVol"])]
+
     df_trend_clean = None
     if "trend" in out:
         df_trend_clean = df_all[df_all["Type"] == "Trend"].dropna(subset=["AnnReturn", "MaxDD", "AnnVol"])
         df_trend_clean = df_trend_clean[np.isfinite(df_trend_clean["AnnReturn"]) & np.isfinite(df_trend_clean["MaxDD"]) & np.isfinite(df_trend_clean["AnnVol"])]
+
     df_benchmark_clean = None
     if "benchmark" in out:
         df_benchmark_clean = df_all[df_all["Type"] == "Benchmark"].dropna(subset=["AnnReturn", "MaxDD", "AnnVol"])
         df_benchmark_clean = df_benchmark_clean[np.isfinite(df_benchmark_clean["AnnReturn"]) & np.isfinite(df_benchmark_clean["MaxDD"]) & np.isfinite(df_benchmark_clean["AnnVol"])]
 
-    # Remove inf values as well
-    df_static_clean = df_static_clean[np.isfinite(df_static_clean["AnnReturn"]) & np.isfinite(df_static_clean["MaxDD"]) & np.isfinite(df_static_clean["AnnVol"])]
-
     with colA:
         fig_r = go.Figure()
-        fig_r.add_trace(go.Histogram(
-            x=(df_static_clean["AnnReturn"] * 100).tolist(),
-            name="Static",
-            nbinsx=50,
-            marker=dict(color="blue"),
-            histnorm='probability density'
-        ))
+        if df_static_clean is not None:
+            fig_r.add_trace(go.Histogram(
+                x=(df_static_clean["AnnReturn"] * 100).tolist(),
+                name="Static",
+                nbinsx=50,
+                marker=dict(color="blue"),
+                histnorm='probability density'
+            ))
         if df_trend_clean is not None:
             fig_r.add_trace(go.Histogram(
                 x=(df_trend_clean["AnnReturn"] * 100).tolist(),
@@ -220,13 +253,14 @@ if run:
 
     with colB:
         fig_dd = go.Figure()
-        fig_dd.add_trace(go.Histogram(
-            x=(df_static_clean["MaxDD"] * 100).tolist(),
-            name="Static",
-            nbinsx=50,
-            marker=dict(color="blue"),
-            histnorm='probability density'
-        ))
+        if df_static_clean is not None:
+            fig_dd.add_trace(go.Histogram(
+                x=(df_static_clean["MaxDD"] * 100).tolist(),
+                name="Static",
+                nbinsx=50,
+                marker=dict(color="blue"),
+                histnorm='probability density'
+            ))
         if df_trend_clean is not None:
             fig_dd.add_trace(go.Histogram(
                 x=(df_trend_clean["MaxDD"] * 100).tolist(),
@@ -254,13 +288,14 @@ if run:
 
     with colC:
         fig_vol = go.Figure()
-        fig_vol.add_trace(go.Histogram(
-            x=(df_static_clean["AnnVol"] * 100).tolist(),
-            name="Static",
-            nbinsx=50,
-            marker=dict(color="blue"),
-            histnorm='probability density'
-        ))
+        if df_static_clean is not None:
+            fig_vol.add_trace(go.Histogram(
+                x=(df_static_clean["AnnVol"] * 100).tolist(),
+                name="Static",
+                nbinsx=50,
+                marker=dict(color="blue"),
+                histnorm='probability density'
+            ))
         if df_trend_clean is not None:
             fig_vol.add_trace(go.Histogram(
                 x=(df_trend_clean["AnnVol"] * 100).tolist(),
@@ -289,33 +324,33 @@ if run:
 
     # ---- Combined fan chart (same y-scale)
     def combined_fan_figure(bands_static, bands_trend=None, bands_benchmark=None):
-        x = np.arange(len(bands_static["q50"]))
+        # Determine x-axis from available bands
+        if bands_static is not None:
+            x = np.arange(len(bands_static["q50"])) / 12
+        elif bands_trend is not None:
+            x = np.arange(len(bands_trend["q50"])) / 12
+        elif bands_benchmark is not None:
+            x = np.arange(len(bands_benchmark["q50"])) / 12
+        else:
+            x = np.arange(months) / 12  # Fallback if no bands
         fig = go.Figure()
 
-        # --- Static (blue)
-        fig.add_trace(go.Scatter(
-            x=np.concatenate([x, x[::-1]]),
-            y=np.concatenate([bands_static["q95"], bands_static["q05"][::-1]]),
-            fill='toself',
-            fillcolor='rgba(0, 100, 255, 0.15)',
-            line=dict(color='rgba(255,255,255,0)'),
-            hoverinfo="skip",
-            name='Static 90% range'
-        ))
-        fig.add_trace(go.Scatter(
-            x=np.concatenate([x, x[::-1]]),
-            y=np.concatenate([bands_static["q75"], bands_static["q25"][::-1]]),
-            fill='toself',
-            fillcolor='rgba(0, 100, 255, 0.3)',
-            line=dict(color='rgba(255,255,255,0)'),
-            hoverinfo="skip",
-            name='Static 50% range'
-        ))
-        fig.add_trace(go.Scatter(
-            x=x, y=bands_static["q50"],
-            line=dict(color='blue', width=2),
-            name='Static median'
-        ))
+        # --- Static (blue) if provided
+        if bands_static is not None:
+            fig.add_trace(go.Scatter(
+                x=np.concatenate([x, x[::-1]]),
+                y=np.concatenate([bands_static["q95"], bands_static["q05"][::-1]]),
+                fill='toself',
+                fillcolor='rgba(0, 100, 255, 0.15)',
+                line=dict(color='rgba(255,255,255,0)'),
+                hoverinfo="skip",
+                name='Static 90% range'
+            ))
+            fig.add_trace(go.Scatter(
+                x=x, y=bands_static["q50"],
+                line=dict(color='blue', width=2),
+                name='Static median'
+            ))
 
         # --- Trend (orange)
         if bands_trend is not None:
@@ -327,15 +362,6 @@ if run:
                 line=dict(color='rgba(255,255,255,0)'),
                 hoverinfo="skip",
                 name='Trend 90% range'
-            ))
-            fig.add_trace(go.Scatter(
-                x=np.concatenate([x, x[::-1]]),
-                y=np.concatenate([bands_trend["q75"], bands_trend["q25"][::-1]]),
-                fill='toself',
-                fillcolor='rgba(255, 165, 0, 0.3)',
-                line=dict(color='rgba(255,255,255,0)'),
-                hoverinfo="skip",
-                name='Trend 50% range'
             ))
             fig.add_trace(go.Scatter(
                 x=x, y=bands_trend["q50"],
@@ -355,40 +381,38 @@ if run:
                 name='Benchmark 90% range'
             ))
             fig.add_trace(go.Scatter(
-                x=np.concatenate([x, x[::-1]]),
-                y=np.concatenate([bands_benchmark["q75"], bands_benchmark["q25"][::-1]]),
-                fill='toself',
-                fillcolor='rgba(0, 128, 0, 0.3)',
-                line=dict(color='rgba(255,255,255,0)'),
-                hoverinfo="skip",
-                name='Benchmark 50% range'
-            ))
-            fig.add_trace(go.Scatter(
                 x=x, y=bands_benchmark["q50"],
                 line=dict(color='green', width=2),
                 name='Benchmark median'
             ))
 
-        # --- Shared Y range
-        all_bands = [bands_static]
+        # --- Shared Y range (adjust for available bands)
+        all_bands = []
+        if bands_static is not None:
+            all_bands.append(bands_static)
         if bands_trend is not None:
             all_bands.append(bands_trend)
         if bands_benchmark is not None:
             all_bands.append(bands_benchmark)
-        ymax = max(np.nanmax(b["q95"]) for b in all_bands) * 1.1
-        ymin = min(np.nanmin(b["q05"]) for b in all_bands) * 0.9
+        if all_bands:
+            ymax = max(np.nanmax(b["q95"]) for b in all_bands) * 1.1
+            ymin = min(np.nanmin(b["q05"]) for b in all_bands) * 0.9
+        else:
+            ymax, ymin = 1.1, 0.9  # Default if no bands
 
         # Dynamic title
-        title_parts = ["Static"]
+        title_parts = []
+        if bands_static is not None:
+            title_parts.append("Static")
         if bands_trend is not None:
             title_parts.append("Trend")
         if bands_benchmark is not None:
             title_parts.append("Benchmark")
-        title = " vs ".join(title_parts) + " Portfolio Wealth Fans"
+        title = " vs ".join(title_parts) + " Portfolio Wealth Fans" if title_parts else "Portfolio Wealth Fans"
 
         fig.update_layout(
             title=title,
-            xaxis_title="Months",
+            xaxis_title="Years",
             yaxis_title="Wealth Index (start=1.0)",
             yaxis=dict(range=[ymin, ymax]),
             template="plotly_white",
@@ -399,17 +423,17 @@ if run:
         return fig
 
     # ---- Render combined fan chart
+    static_bands = out.get("static", {}).get("bands") if "static" in out else None
     trend_bands = out.get("trend", {}).get("bands")
     benchmark_bands = out.get("benchmark", {}).get("bands")
-    fig_combined = combined_fan_figure(out["static"]["bands"], trend_bands, benchmark_bands)
-    html_combined = pio.to_html(fig_combined, full_html=False, include_plotlyjs="cdn")
-    components.html(html_combined, height=750, scrolling=True)
+    fig_combined = combined_fan_figure(static_bands, trend_bands, benchmark_bands)
+    st.plotly_chart(fig_combined, use_container_width=True)
 
     st.markdown("----")
-    st.caption(
-        "Method: joint stationary bootstrap (synchronous blocks) over monthly returns for equities, bonds, and cash. "
-        "Trend overlay applied per asset (lookback positive → invested; otherwise cash)."
-    )
+    # st.caption(
+    #     "Method: joint stationary bootstrap (synchronous blocks) over monthly returns for equities, bonds, and cash. "
+    #     "Trend overlay applied per asset (lookback positive → invested; otherwise cash)."
+    # )
 
 else:
     st.info("Set your inputs in the sidebar and click **Run simulation**.")

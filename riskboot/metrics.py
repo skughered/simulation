@@ -64,6 +64,41 @@ def percentile_bands(wealth: np.ndarray, qs=(0.05, 0.25, 0.5, 0.75, 0.95)) -> di
     return bands
 
 
+def compute_windowed_maxdd_percentile(returns: np.ndarray, window_years: int, percentile: float = 5.0) -> float:
+    """
+    Compute the percentile of maximum drawdowns within rolling windows of specified years.
+
+    Args:
+        returns: (S, M) array of monthly returns.
+        window_years: Window length in years (e.g., 10).
+        percentile: Percentile to compute (e.g., 5.0 for 5th percentile).
+
+    Returns:
+        The specified percentile of windowed max drawdowns.
+    """
+    S, M = returns.shape
+    window_months = window_years * 12
+    windowed_maxdds = []
+
+    for s in range(S):
+        path = returns[s]
+        if len(path) < window_months:
+            continue
+        cumulative = np.cumprod(1 + path)
+        for start in range(0, M - window_months + 1, window_months // 2):  # Overlapping windows
+            window_cum = cumulative[start:start + window_months]
+            if len(window_cum) > 1:
+                running_max = np.maximum.accumulate(window_cum)
+                drawdown = (window_cum - running_max) / running_max
+                max_dd = drawdown.min()
+                windowed_maxdds.append(max_dd)
+
+    if not windowed_maxdds:
+        return np.nan
+
+    return float(np.percentile(windowed_maxdds, percentile))
+
+
 if __name__ == "__main__":
     import numpy as np
     wealth = np.random.normal(0.01, 0.05, size=(500, 240)).cumsum(axis=1)

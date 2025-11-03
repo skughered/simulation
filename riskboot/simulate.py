@@ -7,7 +7,7 @@ from riskboot.data import parse_meta_csv, DataPaths, load_trend_weights
 from riskboot.bootstrap import joint_stationary_bootstrap
 from riskboot.trend import apply_trend_filter
 from riskboot.portfolio import combine_static, combine_trend
-from riskboot.metrics import summarise_sims, wealth_paths, percentile_bands
+from riskboot.metrics import summarise_sims, wealth_paths, percentile_bands, compute_windowed_maxdd_percentile
 
 
 def simulate_markets_joint(
@@ -72,41 +72,36 @@ def simulate_portfolios(
     # Get public assets
     public_assets = meta_df[meta_df['public']].index.tolist()
 
-    # Static: Combine public assets with user weights (normalize)
+    # Static: Combine public assets with user weights (normalize) only if weights are provided
     total_w = sum(weights.values())
-    if total_w == 0:
-        static = np.zeros((S, M))  # All cash if no weights
-    else:
+    output = {}
+    if total_w > 0:
         norm_weights = {k: v / total_w for k, v in weights.items()}
         static = np.zeros((S, M))
         for asset, w in norm_weights.items():
             if asset in public_assets:
                 idx = meta_df.index.get_loc(asset)
                 static += w * bootstrapped[:, :, idx]
-            # If asset not public, skip
+        output["static"] = {"returns": static, "metrics": summarise_sims(static), "bands": percentile_bands(wealth_paths(static))}
 
     # Trend: Apply trend filter per asset, then weight and sum
     trend = np.zeros((S, M))
     if trend_portfolio != "None":
         cash_ticker = meta_df[meta_df['name'].str.contains('Cash \\(3m\\)', case=False)].index[0]
-        print(f"Debug: Cash ticker for trend: {cash_ticker}")
+        # print(f"Debug: Cash ticker for trend: {cash_ticker}")
         trend = np.zeros((S, M))
         for ticker, w in twp_weights.items():
-            if ticker in meta_df.index:
+            if w > 0 and ticker in meta_df.index:  # Skip if weight is zero
                 asset_returns = bootstrapped[:, :, meta_df.index.get_loc(ticker)]
                 cash_returns = bootstrapped[:, :, meta_df.index.get_loc(cash_ticker)]
                 asset_tf = apply_trend_filter(asset_returns, cash_returns, lookback)
                 trend += w * asset_tf
-                print(f"Debug: Asset {ticker}, weight {w}, sample tf returns: {asset_tf[0, :5]}")
-        print(f"Debug: Trend portfolio weights: {twp_weights.to_dict()}")
-        print(f"Debug: Sample trend returns (first scenario, first 5 months): {trend[0, :5]}")
+                # print(f"Debug: Asset {ticker}, weight {w}, sample tf returns: {asset_tf[0, :5]}")
+        # print(f"Debug: Trend portfolio weights: {twp_weights.to_dict()}")
+        # print(f"Debug: Sample trend returns (first scenario, first 5 months): {trend[0, :5]}")
+        output["trend"] = {"returns": trend, "metrics": summarise_sims(trend), "bands": percentile_bands(wealth_paths(trend))}
 
     # Benchmark: Compute BM portfolio return (static, no trend)
-    output = {
-        "static": {"returns": static, "metrics": summarise_sims(static), "bands": percentile_bands(wealth_paths(static))}
-    }
-    if trend_portfolio != "None":
-        output["trend"] = {"returns": trend, "metrics": summarise_sims(trend), "bands": percentile_bands(wealth_paths(trend))}
     if benchmark_portfolio != "None":
         if benchmark_portfolio not in trend_weights_df.columns:
             raise ValueError(f"Benchmark portfolio '{benchmark_portfolio}' not found in weights CSV.")
@@ -120,8 +115,8 @@ def simulate_portfolios(
                 raise ValueError(f"Ticker '{ticker}' in BM not found in data.")
         output["benchmark"] = {"returns": bm_return, "metrics": summarise_sims(bm_return), "bands": percentile_bands(wealth_paths(bm_return))}
 
-    # Optional volatility scaling for static portfolio
-    if vol_increase is not None and vol_increase > 0:
+    # Optional volatility scaling for static portfolio (only if static exists)
+    if vol_increase is not None and vol_increase > 0 and "static" in output:
         # Compute historical portfolio returns using df_hist
         hist_port = np.zeros(len(df_hist))
         for asset, w in norm_weights.items():
@@ -132,7 +127,15 @@ def simulate_portfolios(
 
         # Apply scaling
         scale = 1 + vol_increase / hist_vol
-        static = mu_hist + scale * (static - mu_hist)
-        static = np.clip(static, -0.95, None)
+        output["static"]["returns"] = mu_hist + scale * (output["static"]["returns"] - mu_hist)
+        output["static"]["returns"] = np.clip(output["static"]["returns"], -0.95, None)
+        # Recompute metrics and bands after scaling
+        output["static"]["metrics"] = summarise_sims(output["static"]["returns"])
+        output["static"]["bands"] = percentile_bands(wealth_paths(output["static"]["returns"]))
+
+    # Compute windowed MaxDD for all portfolios in output
+    window_years = 10
+    for key in output:
+        output[key]["metrics"]["WindowedMaxDD5th"] = compute_windowed_maxdd_percentile(output[key]["returns"], window_years)
 
     return output
