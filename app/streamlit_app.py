@@ -155,7 +155,7 @@ if run:
 
         with c3:
             st.metric("5th AnnVol", f"{np.percentile(df_static['AnnVol'], 5) * 100:.1f}%")
-            st.metric("Mean AnnVol", f"{np.mean(df_static['AnnVol']) * 100:.1f}%")
+            st.metric("Median AnnVol", f"{np.median(df_static['AnnVol']) * 100:.1f}%")
             st.metric("95th AnnVol", f"{np.percentile(df_static['AnnVol'], 95) * 100:.1f}%")
 
     if "trend" in out:
@@ -174,7 +174,7 @@ if run:
 
         with c3:
             st.metric("5th AnnVol", f"{np.percentile(df_trend['AnnVol'], 5) * 100:.1f}%")
-            st.metric("Mean AnnVol", f"{np.mean(df_trend['AnnVol']) * 100:.1f}%")
+            st.metric("Median AnnVol", f"{np.median(df_trend['AnnVol']) * 100:.1f}%")
             st.metric("95th AnnVol", f"{np.percentile(df_trend['AnnVol'], 95) * 100:.1f}%")
 
     if "benchmark" in out:
@@ -191,7 +191,7 @@ if run:
             st.metric("Windowed MaxDD 5th", f"{out['benchmark']['metrics'].get('WindowedMaxDD5th', np.nan) * 100:.1f}%")
         with c3:
             st.metric("5th AnnVol", f"{np.percentile(df_benchmark['AnnVol'], 5) * 100:.1f}%")
-            st.metric("Mean AnnVol", f"{np.mean(df_benchmark['AnnVol']) * 100:.1f}%")
+            st.metric("Median AnnVol", f"{np.median(df_benchmark['AnnVol']) * 100:.1f}%")
             st.metric("95th AnnVol", f"{np.percentile(df_benchmark['AnnVol'], 95) * 100:.1f}%")
 
 
