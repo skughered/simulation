@@ -28,7 +28,7 @@ st.title("📈 Simulator")
 # ---------------------------------------------------
 with st.sidebar:
     st.header("Inputs")
-    years = st.slider("Projection horizon (years)", 5, 60, 20, 1)
+    years = st.slider("Projection horizon (years)", 5, 50, 20, 1)
     months = years * 12
 
     scens = st.slider("Number of simulations", 500, 10000, 4000, 500)
