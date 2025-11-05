@@ -134,8 +134,17 @@ def simulate_portfolios(
         output["static"]["bands"] = percentile_bands(wealth_paths(output["static"]["returns"]))
 
     # Compute windowed MaxDD for all portfolios in output
+    # window_years = 10
+    # for key in output:
+    #     output[key]["metrics"]["WindowedMaxDD5th"] = compute_windowed_maxdd_percentile(output[key]["returns"], window_years)
     window_years = 10
     for key in output:
-        output[key]["metrics"]["WindowedMaxDD5th"] = compute_windowed_maxdd_percentile(output[key]["returns"], window_years)
+        output[key]["metrics"]["WindowedMaxDD5th"] = compute_windowed_maxdd_percentile(
+            output[key]["returns"], window_years, percentile=5.0
+        )
+        output[key]["metrics"]["WindowedMaxDD25th"] = compute_windowed_maxdd_percentile(
+            output[key]["returns"], window_years, percentile=25.0
+        )
+
 
     return output
