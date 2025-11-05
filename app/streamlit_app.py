@@ -96,6 +96,23 @@ with st.sidebar:
 
     run = st.button("Run simulation", type="primary")
 
+def fmt_pct(val):
+    """
+    Safely convert val to a float and format as percent string.
+    Returns 'n/a' when not available.
+    """
+    try:
+        # handle numpy scalars/size-1 arrays
+        v = float(np.asarray(val).item())
+    except Exception:
+        try:
+            v = float(val)
+        except Exception:
+            v = np.nan
+    if np.isnan(v):
+        return "n/a"
+    return f"{v * 100:.1f}%"
+
 # ---------------------------------------------------
 # Cached simulation run
 # ---------------------------------------------------
@@ -151,8 +168,8 @@ if run:
             st.metric("5th MaxDD", f"{np.percentile(df_static['MaxDD'], 5) * 100:.1f}%")
             st.metric("Median MaxDD", f"{np.median(df_static['MaxDD']) * 100:.1f}%")
             st.metric("95th MaxDD", f"{np.percentile(df_static['MaxDD'], 95) * 100:.1f}%")
-            st.metric("Windowed MaxDD 5th", f"{out['static']['metrics'].get('WindowedMaxDD5th', np.nan) * 100:.1f}%")
-            st.metric("Windowed MaxDD 25th", f"{out['static']['metrics'].get('WindowedMaxDD25th', np.nan) * 100:.1f}%")
+            st.metric("Windowed MaxDD 5th", fmt_pct(out['static']['metrics'].get('WindowedMaxDD5th', np.nan)))
+            st.metric("Windowed MaxDD 25th", fmt_pct(out['static']['metrics'].get('WindowedMaxDD25th', np.nan)))
 
         with c3:
             st.metric("5th AnnVol", f"{np.percentile(df_static['AnnVol'], 5) * 100:.1f}%")
@@ -171,8 +188,8 @@ if run:
             st.metric("5th MaxDD", f"{np.percentile(df_trend['MaxDD'], 5) * 100:.1f}%")
             st.metric("Median MaxDD", f"{np.median(df_trend['MaxDD']) * 100:.1f}%")
             st.metric("95th MaxDD", f"{np.percentile(df_trend['MaxDD'], 95) * 100:.1f}%")
-            st.metric("Windowed MaxDD 5th", f"{out['trend']['metrics'].get('WindowedMaxDD5th', np.nan) * 100:.1f}%")
-            st.metric("Windowed MaxDD 25th", f"{out['static']['metrics'].get('WindowedMaxDD25th', np.nan) * 100:.1f}%")
+            st.metric("Windowed MaxDD 5th", fmt_pct(out['trend']['metrics'].get('WindowedMaxDD5th', np.nan)))
+            st.metric("Windowed MaxDD 25th", fmt_pct(out['trend']['metrics'].get('WindowedMaxDD25th', np.nan)))
 
         with c3:
             st.metric("5th AnnVol", f"{np.percentile(df_trend['AnnVol'], 5) * 100:.1f}%")
@@ -190,8 +207,8 @@ if run:
             st.metric("5th MaxDD", f"{np.percentile(df_benchmark['MaxDD'], 5) * 100:.1f}%")
             st.metric("Median MaxDD", f"{np.median(df_benchmark['MaxDD']) * 100:.1f}%")
             st.metric("95th MaxDD", f"{np.percentile(df_benchmark['MaxDD'], 95) * 100:.1f}%")
-            st.metric("Windowed MaxDD 5th", f"{out['benchmark']['metrics'].get('WindowedMaxDD5th', np.nan) * 100:.1f}%")
-            st.metric("Windowed MaxDD 25th", f"{out['static']['metrics'].get('WindowedMaxDD25th', np.nan) * 100:.1f}%")
+            st.metric("Windowed MaxDD 5th", fmt_pct(out['benchmark']['metrics'].get('WindowedMaxDD5th', np.nan)))
+            st.metric("Windowed MaxDD 25th", fmt_pct(out['benchmark']['metrics'].get('WindowedMaxDD25th', np.nan)))
 
         with c3:
             st.metric("5th AnnVol", f"{np.percentile(df_benchmark['AnnVol'], 5) * 100:.1f}%")

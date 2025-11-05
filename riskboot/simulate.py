@@ -139,12 +139,11 @@ def simulate_portfolios(
     #     output[key]["metrics"]["WindowedMaxDD5th"] = compute_windowed_maxdd_percentile(output[key]["returns"], window_years)
     window_years = 10
     for key in output:
-        output[key]["metrics"]["WindowedMaxDD5th"] = compute_windowed_maxdd_percentile(
-            output[key]["returns"], window_years, percentile=5.0
-        )
-        output[key]["metrics"]["WindowedMaxDD25th"] = compute_windowed_maxdd_percentile(
-            output[key]["returns"], window_years, percentile=25.0
-        )
+        # call helper with explicit percentile and coerce to float so the UI always gets a scalar
+        w5 = compute_windowed_maxdd_percentile(output[key]["returns"], window_years, percentile=5.0)
+        w25 = compute_windowed_maxdd_percentile(output[key]["returns"], window_years, percentile=25.0)
+        output[key]["metrics"]["WindowedMaxDD5th"] = float(w5) if not np.isnan(w5) else np.nan
+        output[key]["metrics"]["WindowedMaxDD25th"] = float(w25) if not np.isnan(w25) else np.nan
 
 
     return output
