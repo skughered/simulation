@@ -94,6 +94,27 @@ with st.sidebar:
     else:
         benchmark_portfolio = None
 
+    # Cashflow / sequencing risk option
+    st.markdown("---")
+    cashflow_enabled = st.checkbox("Enable cash flow (sequencing) analysis", value=False)
+    if cashflow_enabled:
+        st.subheader("Cashflow inputs")
+        start_value = st.number_input("Starting portfolio value (£)", min_value=0.0, value=1000000.0, step=1000.0)
+        inflation_pct = st.number_input("Inflation (annual %)", min_value=0.0, max_value=100.0, value=2.0, step=0.1) / 100.0
+        st.caption("Enter desired withdrawal per year (nominal). Leave zeros for none.")
+        annual_withdrawals = []
+        # Use st.number_input with unique keys per year
+        for y in range(1, years + 1):
+            default = 0.0
+            if y == 1:
+                default = round(start_value * 0.04)
+            val = st.number_input(f"Year {y} withdrawal (£)", min_value=0.0, value=float(default), step=100.0, key=f"withdraw_{y}")
+            annual_withdrawals.append(val)
+    else:
+        start_value = None
+        inflation_pct = 0.0
+        annual_withdrawals = None
+
     run = st.button("Run simulation", type="primary")
 
 def fmt_pct(val):
@@ -112,6 +133,123 @@ def fmt_pct(val):
     if np.isnan(v):
         return "n/a"
     return f"{v * 100:.1f}%"
+
+# --- Helper: sanitize percentile bands for plotting (handle NaNs/empty)
+def _sanitize_bands(bands: dict | None):
+    if not bands or not isinstance(bands, dict):
+        return None
+    q50 = np.asarray(bands.get("q50", []), dtype=float)
+    if q50.size == 0 or not np.isfinite(q50).any():
+        return None
+    cleaned = {}
+    for k, v in bands.items():
+        arr = np.asarray(v, dtype=float)
+        if arr.size == 0 or not np.isfinite(arr).any():
+            cleaned[k] = None
+            continue
+        if np.isnan(arr).any():
+            idx = np.arange(arr.size)
+            good = np.isfinite(arr)
+            if good.sum() == 0:
+                arr = np.zeros_like(arr)
+            else:
+                arr[np.isnan(arr)] = np.interp(idx[np.isnan(arr)], idx[good], arr[good])
+        cleaned[k] = arr
+    return cleaned
+
+# --- Combined fan figure (module-level, safe) ---
+def combined_fan_figure(bands_static, bands_trend=None, bands_benchmark=None, months=None, is_wealth_index=True, starting_value=1.0):
+    b_static = _sanitize_bands(bands_static) if bands_static is not None else None
+    b_trend = _sanitize_bands(bands_trend) if bands_trend is not None else None
+    b_bench = _sanitize_bands(bands_benchmark) if bands_benchmark is not None else None
+
+    first = b_static or b_trend or b_bench
+    if not first:
+        if months is None:
+            x = np.arange(12) / 12.0
+        else:
+            x = np.arange(months) / 12.0
+    else:
+        x = np.arange(len(first["q50"])) / 12.0
+
+    fig = go.Figure()
+
+    def _add_band(band, fillcol, mediancol, label):
+        if not band:
+            return
+        q05 = band.get("q05")
+        q50 = band.get("q50")
+        q95 = band.get("q95")
+        if q05 is None or q50 is None or q95 is None:
+            return
+        fig.add_trace(go.Scatter(
+            x=np.concatenate([x, x[::-1]]),
+            y=np.concatenate([q95, q05[::-1]]),
+            fill='toself',
+            fillcolor=fillcol,
+            line=dict(color=mediancol, width=1),
+            hoverinfo='skip',
+            name=f'{label} 90% range'
+        ))
+        fig.add_trace(go.Scatter(x=x, y=q50, line=dict(color=mediancol, width=3), mode='lines+markers', marker=dict(size=2), name=f'{label} median'))
+
+    _add_band(b_static, 'rgba(173,216,230,0.8)', 'blue', 'Static')
+    _add_band(b_trend, 'rgba(255,165,0,0.8)', 'orange', 'Trend')
+    _add_band(b_bench, 'rgba(0,128,0,0.8)', 'green', 'Benchmark')
+
+    # Add starting balance line
+    fig.add_trace(go.Scatter(
+        x=[x[0], x[-1]], y=[starting_value, starting_value],
+        mode='lines',
+        line=dict(color='black', dash='dash', width=2),
+        name='Starting Balance'
+    ))
+
+    all_vals = []
+    for band in (b_static, b_trend, b_bench):
+        if band:
+            for key in ("q05", "q95"):
+                arr = band.get(key)
+                if arr is not None:
+                    all_vals.append(arr)
+    if all_vals:
+        stacked = np.concatenate([a.ravel() for a in all_vals])
+        finite = stacked[np.isfinite(stacked)]
+        if finite.size > 0:
+            ymax = finite.max() * 1.1
+            ymin = finite.min() * 0.9
+            if not is_wealth_index:
+                ymin = 0
+        else:
+            ymax, ymin = 1.1, 0.9
+    else:
+        ymax, ymin = 1.1, 0.9
+
+    title_parts = []
+    if b_static:
+        title_parts.append('Static')
+    if b_trend:
+        title_parts.append('Trend')
+    if b_bench:
+        title_parts.append('Benchmark')
+    if is_wealth_index:
+        title = ' vs '.join(title_parts) + ' Portfolio Wealth Fans' if title_parts else 'Portfolio Wealth Fans'
+        yaxis_title = 'Wealth Index (start=1.0)'
+    else:
+        title = ' vs '.join(title_parts) + ' Portfolio Wealth After Withdrawals Fans' if title_parts else 'Portfolio Wealth After Withdrawals Fans'
+        yaxis_title = 'Wealth (£)'
+
+    fig.update_layout(
+        title=title,
+        xaxis_title='Years',
+        yaxis_title=yaxis_title,
+        yaxis=dict(range=[ymin, ymax]),
+        template='plotly_white',
+        height=700,
+        hovermode='x unified',
+        legend=dict(orientation='h', yanchor='bottom', y=-0.25, xanchor='center', x=0.5)
+    )
+    return fig
 
 # ---------------------------------------------------
 # Cached simulation run
@@ -343,118 +481,64 @@ if run:
         st.plotly_chart(fig_vol, use_container_width=True)
 
 
-    # ---- Combined fan chart (same y-scale)
-    def combined_fan_figure(bands_static, bands_trend=None, bands_benchmark=None):
-        # Determine x-axis from available bands
-        if bands_static is not None:
-            x = np.arange(len(bands_static["q50"])) / 12
-        elif bands_trend is not None:
-            x = np.arange(len(bands_trend["q50"])) / 12
-        elif bands_benchmark is not None:
-            x = np.arange(len(bands_benchmark["q50"])) / 12
-        else:
-            x = np.arange(months) / 12  # Fallback if no bands
-        fig = go.Figure()
-
-        # --- Static (blue) if provided
-        if bands_static is not None:
-            fig.add_trace(go.Scatter(
-                x=np.concatenate([x, x[::-1]]),
-                y=np.concatenate([bands_static["q95"], bands_static["q05"][::-1]]),
-                fill='toself',
-                fillcolor='rgba(0, 100, 255, 0.15)',
-                line=dict(color='rgba(255,255,255,0)'),
-                hoverinfo="skip",
-                name='Static 90% range'
-            ))
-            fig.add_trace(go.Scatter(
-                x=x, y=bands_static["q50"],
-                line=dict(color='blue', width=2),
-                name='Static median'
-            ))
-
-        # --- Trend (orange)
-        if bands_trend is not None:
-            fig.add_trace(go.Scatter(
-                x=np.concatenate([x, x[::-1]]),
-                y=np.concatenate([bands_trend["q95"], bands_trend["q05"][::-1]]),
-                fill='toself',
-                fillcolor='rgba(255, 165, 0, 0.15)',
-                line=dict(color='rgba(255,255,255,0)'),
-                hoverinfo="skip",
-                name='Trend 90% range'
-            ))
-            fig.add_trace(go.Scatter(
-                x=x, y=bands_trend["q50"],
-                line=dict(color='orange', width=2),
-                name='Trend median'
-            ))
-
-        # --- Benchmark (green)
-        if bands_benchmark is not None:
-            fig.add_trace(go.Scatter(
-                x=np.concatenate([x, x[::-1]]),
-                y=np.concatenate([bands_benchmark["q95"], bands_benchmark["q05"][::-1]]),
-                fill='toself',
-                fillcolor='rgba(0, 128, 0, 0.15)',
-                line=dict(color='rgba(255,255,255,0)'),
-                hoverinfo="skip",
-                name='Benchmark 90% range'
-            ))
-            fig.add_trace(go.Scatter(
-                x=x, y=bands_benchmark["q50"],
-                line=dict(color='green', width=2),
-                name='Benchmark median'
-            ))
-
-        # --- Shared Y range (adjust for available bands)
-        all_bands = []
-        if bands_static is not None:
-            all_bands.append(bands_static)
-        if bands_trend is not None:
-            all_bands.append(bands_trend)
-        if bands_benchmark is not None:
-            all_bands.append(bands_benchmark)
-        if all_bands:
-            ymax = max(np.nanmax(b["q95"]) for b in all_bands) * 1.1
-            ymin = min(np.nanmin(b["q05"]) for b in all_bands) * 0.9
-        else:
-            ymax, ymin = 1.1, 0.9  # Default if no bands
-
-        # Dynamic title
-        title_parts = []
-        if bands_static is not None:
-            title_parts.append("Static")
-        if bands_trend is not None:
-            title_parts.append("Trend")
-        if bands_benchmark is not None:
-            title_parts.append("Benchmark")
-        title = " vs ".join(title_parts) + " Portfolio Wealth Fans" if title_parts else "Portfolio Wealth Fans"
-
-        fig.update_layout(
-            title=title,
-            xaxis_title="Years",
-            yaxis_title="Wealth Index (start=1.0)",
-            yaxis=dict(range=[ymin, ymax]),
-            template="plotly_white",
-            height=700,
-            hovermode="x unified",
-            legend=dict(orientation="h", yanchor="bottom", y=-0.25, xanchor="center", x=0.5)
-        )
-        return fig
-
     # ---- Render combined fan chart
     static_bands = out.get("static", {}).get("bands") if "static" in out else None
     trend_bands = out.get("trend", {}).get("bands")
     benchmark_bands = out.get("benchmark", {}).get("bands")
     fig_combined = combined_fan_figure(static_bands, trend_bands, benchmark_bands)
-    st.plotly_chart(fig_combined, use_container_width=True)
+    # st.plotly_chart(fig_combined, use_container_width=True)
+    html_string = fig_combined.to_html(full_html=False)
+    components.html(html_string, height=700)
 
     st.markdown("----")
-    # st.caption(
-    #     "Method: joint stationary bootstrap (synchronous blocks) over monthly returns for equities, bonds, and cash. "
-    #     "Trend overlay applied per asset (lookback positive → invested; otherwise cash)."
-    # )
 
-else:
-    st.info("Set your inputs in the sidebar and click **Run simulation**.")
+    # If cashflow enabled, compute and display sequencing results per portfolio
+    if cashflow_enabled and start_value is not None and annual_withdrawals is not None:
+        st.header("Cashflow / Sequencing Analysis")
+        from riskboot.simulate import apply_withdrawals
+
+        res_static = None
+        res_trend = None
+        res_benchmark = None
+
+        for key, label in [("static", "Static"), ("trend", "Trend"), ("benchmark", "Benchmark")]:
+            if key in out:
+                returns = out[key]["returns"]  # (S, M)
+                res = apply_withdrawals(returns, float(start_value), annual_withdrawals, float(inflation_pct))
+                if key == "static":
+                    res_static = res
+                elif key == "trend":
+                    res_trend = res
+                elif key == "benchmark":
+                    res_benchmark = res
+                st.subheader(f"{label} - Cashflow results")
+                st.metric("Survival rate", f"{res['survival_rate']*100:.1f}%")
+                final_balances = res['wealth'][:, -1]
+                st.write(f"Median final balance: £{np.median(final_balances):,.0f}")
+                ruin_months = res['ruin_month'][~np.isnan(res['ruin_month'])]
+                if len(ruin_months) > 0:
+                    st.write(f"Median time to ruin (years): {np.median(ruin_months)/12:.1f}")
+                else:
+                    st.write("No ruin observed in any simulated path.")
+
+        # Combined wealth fan chart
+        bands_static = res_static['bands'] if res_static else None
+        bands_trend = res_trend['bands'] if res_trend else None
+        bands_benchmark = res_benchmark['bands'] if res_benchmark else None
+        fig_wealth = combined_fan_figure(bands_static, bands_trend, bands_benchmark, months=months, is_wealth_index=False, starting_value=start_value)
+        html_string_wealth = fig_wealth.to_html(full_html=False)
+        components.html(html_string_wealth, height=700)
+
+        # Combined survival curves
+        st.markdown("### Survival curves (fraction not ruined over time)")
+        fig_surv = go.Figure()
+        for key, label in [("static", "Static"), ("trend", "Trend"), ("benchmark", "Benchmark")]:
+            if key in out:
+                returns = out[key]['returns']
+                res = apply_withdrawals(returns, float(start_value), annual_withdrawals, float(inflation_pct))
+                surv_by_month = np.mean(res['wealth'] > 0.0, axis=0)
+                fig_surv.add_trace(go.Scatter(x=np.arange(len(surv_by_month))/12.0, y=surv_by_month, name=label, mode='lines+markers', line=dict(width=3), marker=dict(size=3)))
+        fig_surv.update_layout(xaxis_title='Years', yaxis_title='Fraction surviving', height=350, yaxis=dict(range=[0, 1]))
+        # st.plotly_chart(fig_surv, use_container_width=True)
+        html_string_surv = fig_surv.to_html(full_html=False)
+        components.html(html_string_surv, height=350)

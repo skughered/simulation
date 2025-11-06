@@ -50,14 +50,17 @@ def simulate_portfolios(
     Trend uses selected TWP portfolio with trend filter applied to the portfolio return.
     Benchmark uses selected BM portfolio with static weights.
     """
+    # Generate longer data to allow for trend lookback warm-up
+    months_sim = months + lookback
+
     # Get bootstrapped data and metadata
     bootstrapped, meta_df = simulate_markets_joint(
-        months=months,
+        months=months_sim,
         n_scenarios=n_scenarios,
         avg_block_range=block_range,
         seed=seed
     )
-    S, M, K = bootstrapped.shape
+    S, M_sim, K = bootstrapped.shape
 
     # Load historical data for volatility scaling
     df_hist, _ = parse_meta_csv(DATA_DIR, ALL_ASSETS_FILENAME)
@@ -77,19 +80,21 @@ def simulate_portfolios(
     output = {}
     if total_w > 0:
         norm_weights = {k: v / total_w for k, v in weights.items()}
-        static = np.zeros((S, M))
+        static = np.zeros((S, M_sim))
         for asset, w in norm_weights.items():
             if asset in public_assets:
                 idx = meta_df.index.get_loc(asset)
                 static += w * bootstrapped[:, :, idx]
+        # Slice to drop warm-up
+        static = static[:, lookback:lookback + months]
         output["static"] = {"returns": static, "metrics": summarise_sims(static), "bands": percentile_bands(wealth_paths(static))}
 
     # Trend: Apply trend filter per asset, then weight and sum
-    trend = np.zeros((S, M))
+    trend = np.zeros((S, M_sim))
     if trend_portfolio != "None":
         cash_ticker = meta_df[meta_df['name'].str.contains('Cash \\(3m\\)', case=False)].index[0]
         # print(f"Debug: Cash ticker for trend: {cash_ticker}")
-        trend = np.zeros((S, M))
+        trend = np.zeros((S, M_sim))
         for ticker, w in twp_weights.items():
             if w > 0 and ticker in meta_df.index:  # Skip if weight is zero
                 asset_returns = bootstrapped[:, :, meta_df.index.get_loc(ticker)]
@@ -99,6 +104,8 @@ def simulate_portfolios(
                 # print(f"Debug: Asset {ticker}, weight {w}, sample tf returns: {asset_tf[0, :5]}")
         # print(f"Debug: Trend portfolio weights: {twp_weights.to_dict()}")
         # print(f"Debug: Sample trend returns (first scenario, first 5 months): {trend[0, :5]}")
+        # Slice to drop warm-up
+        trend = trend[:, lookback:lookback + months]
         output["trend"] = {"returns": trend, "metrics": summarise_sims(trend), "bands": percentile_bands(wealth_paths(trend))}
 
     # Benchmark: Compute BM portfolio return (static, no trend)
@@ -106,13 +113,15 @@ def simulate_portfolios(
         if benchmark_portfolio not in trend_weights_df.columns:
             raise ValueError(f"Benchmark portfolio '{benchmark_portfolio}' not found in weights CSV.")
         bm_weights = trend_weights_df[benchmark_portfolio].dropna()
-        bm_return = np.zeros((S, M))
+        bm_return = np.zeros((S, M_sim))
         for ticker, w in bm_weights.items():
             if ticker in meta_df.index:
                 idx = meta_df.index.get_loc(ticker)
                 bm_return += w * bootstrapped[:, :, idx]
             else:
                 raise ValueError(f"Ticker '{ticker}' in BM not found in data.")
+        # Slice to drop warm-up
+        bm_return = bm_return[:, lookback:lookback + months]
         output["benchmark"] = {"returns": bm_return, "metrics": summarise_sims(bm_return), "bands": percentile_bands(wealth_paths(bm_return))}
 
     # Optional volatility scaling for static portfolio (only if static exists)
@@ -147,3 +156,50 @@ def simulate_portfolios(
 
 
     return output
+
+def apply_withdrawals(returns: np.ndarray, start_value: float, annual_withdrawals: list, inflation_pct: float) -> dict:
+    """
+    Simulate withdrawals with inflation.
+    returns: (S, M) monthly returns
+    start_value: initial portfolio value
+    annual_withdrawals: list of nominal annual withdrawals (length = years)
+    inflation_pct: annual inflation rate
+    Returns dict with survival_rate, wealth (S, M), bands, ruin_month (S,)
+    """
+    S, M = returns.shape
+    years = len(annual_withdrawals)
+    if M != years * 12:
+        raise ValueError(f"Mismatch: {M} months but {years} years")
+
+    # Compute monthly inflated withdrawals
+    monthly_withdrawals = []
+    for y in range(years):
+        nominal = annual_withdrawals[y]
+        for m in range(12):
+            months_elapsed = y * 12 + m
+            inflated_annual = nominal * (1 + inflation_pct) ** (months_elapsed / 12.0)
+            monthly_withdrawals.append(inflated_annual / 12)
+
+    # Simulate wealth paths
+    wealth = np.zeros((S, M))
+    ruin_month = np.full(S, np.nan, dtype=float)
+    for s in range(S):
+        w = start_value
+        for t in range(M):
+            if t > 0:
+                w *= (1 + returns[s, t-1])
+            withdrawal = min(monthly_withdrawals[t], w)
+            w -= withdrawal
+            wealth[s, t] = w
+            if w <= 0 and np.isnan(ruin_month[s]):
+                ruin_month[s] = t
+
+    survival_rate = np.mean(np.all(wealth > 0, axis=1))
+    bands = percentile_bands(wealth)
+
+    return {
+        'survival_rate': survival_rate,
+        'wealth': wealth,
+        'bands': bands,
+        'ruin_month': ruin_month
+    }

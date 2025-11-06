@@ -4,10 +4,15 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="1891d963-c4d4-4b19-a846-55f1b71ac747" name="Changes" comment="4/11 am push">
+    <list default="true" id="1891d963-c4d4-4b19-a846-55f1b71ac747" name="Changes" comment="5/11 am push 2">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/streamlit_app.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/streamlit_app.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/check_structure.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/fan_check.html" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/riskboot/simulate.py" beforeDir="false" afterPath="$PROJECT_DIR$/riskboot/simulate.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/test_data.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/test_debug.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/test_plot.py" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -24,7 +29,7 @@
   <component name="Git.Settings">
     <option name="RECENT_BRANCH_BY_REPOSITORY">
       <map>
-        <entry key="$PROJECT_DIR$" value="dev" />
+        <entry key="$PROJECT_DIR$" value="master" />
       </map>
     </option>
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
@@ -53,17 +58,17 @@
     <option name="showLibraryContents" value="true" />
     <option name="sortKey" value="BY_TIME_ASCENDING" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
-    &quot;Python.main.executor&quot;: &quot;Run&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
-    &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;database.data.views.appearance&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "Python.main.executor": "Run",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "git-widget-placeholder": "dev",
+    "ignore.virus.scanning.warn.message": "true",
+    "settings.editor.selected.configurable": "database.data.views.appearance"
   }
-}</component>
+}]]></component>
   <component name="RecentsManager">
     <key name="MoveFile.RECENT_KEYS">
       <recent name="C:\Users\hughh\PycharmProjects\simulation\riskboot\data" />
@@ -220,7 +225,23 @@
       <option name="project" value="LOCAL" />
       <updated>1762255457953</updated>
     </task>
-    <option name="localTasksCounter" value="14" />
+    <task id="LOCAL-00014" summary="5/11 am push">
+      <option name="closed" value="true" />
+      <created>1762345261719</created>
+      <option name="number" value="00014" />
+      <option name="presentableId" value="LOCAL-00014" />
+      <option name="project" value="LOCAL" />
+      <updated>1762345261719</updated>
+    </task>
+    <task id="LOCAL-00015" summary="5/11 am push 2">
+      <option name="closed" value="true" />
+      <created>1762345636534</created>
+      <option name="number" value="00015" />
+      <option name="presentableId" value="LOCAL-00015" />
+      <option name="project" value="LOCAL" />
+      <updated>1762345636534</updated>
+    </task>
+    <option name="localTasksCounter" value="16" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
@@ -233,6 +254,8 @@
     <MESSAGE value="3/11 push 3" />
     <MESSAGE value="3/11 push 4" />
     <MESSAGE value="4/11 am push" />
-    <option name="LAST_COMMIT_MESSAGE" value="4/11 am push" />
+    <MESSAGE value="5/11 am push" />
+    <MESSAGE value="5/11 am push 2" />
+    <option name="LAST_COMMIT_MESSAGE" value="5/11 am push 2" />
   </component>
 </project>
